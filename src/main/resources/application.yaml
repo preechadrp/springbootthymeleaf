@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: springbootthymeleaf
+  thymeleaf:
+    cache: false  #กรณีเป็น dev 

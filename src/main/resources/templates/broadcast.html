@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Demo</title>
+
+    <style>
+        #divMsg {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 8px;
+            font-family: monospace;
+        }
+        .status {
+            color: gray;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Broadcast Messages</h2>
+<div id="divMsg"></div>
+
+<script th:inline="javascript">
+    // ✅ ใช้ Thymeleaf รองรับ context path
+    const wsPath = /*[[@{/websocket/broadcast}]]*/ "/websocket/broadcast";
+
+    const wsUrl =
+        (window.location.protocol === "https:" ? "wss://" : "ws://")
+        + window.location.host
+        + wsPath;
+
+    console.log("WS URL:", wsUrl);
+
+    let socket;
+    const divMsg = document.getElementById("divMsg");
+
+    let msgQueue = [];
+    let autoScroll = true;
+
+    // detect scroll position
+    divMsg.addEventListener("scroll", () => {
+        autoScroll = (divMsg.scrollTop + divMsg.clientHeight >= divMsg.scrollHeight - 5);
+    });
+
+    // reconnect function
+    function connect() {
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+            addMessage("เชื่อมต่อแล้ว", "status");
+        };
+
+        socket.onmessage = (event) => {
+            if (msgQueue.length < 5000) {
+                msgQueue.push(event.data);
+            }
+        };
+
+        socket.onclose = (event) => {
+            if (event.wasClean) {
+                addMessage("ตัดการเชื่อมต่อแล้ว", "status");
+            } else {
+                addMessage("การเชื่อมต่อขาดหายไป (reconnecting...)", "error");
+                setTimeout(connect, 3000); // auto reconnect
+            }
+        };
+
+        socket.onerror = () => {
+            addMessage("เกิดข้อผิดพลาด", "error");
+        };
+    }
+
+    // start connection
+    connect();
+
+    // close ก่อนออกจากหน้า
+    window.addEventListener("beforeunload", () => {
+        if (socket) socket.close();
+    });
+
+    // keep-alive (กัน timeout)
+    setInterval(() => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(".");
+        }
+    }, 30000);
+
+    // render message batch
+    setInterval(() => {
+        if (msgQueue.length === 0) return;
+
+        const batchSize = msgQueue.length > 1000 ? 200 : 50;
+        const batch = msgQueue.splice(0, batchSize);
+
+        const frag = document.createDocumentFragment();
+
+        for (let msg of batch) {
+            const p = document.createElement("p");
+            p.textContent = msg; // ✅ safe (no XSS)
+            frag.appendChild(p);
+        }
+
+        divMsg.appendChild(frag);
+
+        // limit rows
+        let excess = divMsg.children.length - 2000;
+        while (excess-- > 0) {
+            divMsg.removeChild(divMsg.firstElementChild);
+        }
+
+        if (autoScroll) {
+            divMsg.scrollTop = divMsg.scrollHeight;
+        }
+
+    }, 50);
+
+    // helper
+    function addMessage(text, className) {
+        const p = document.createElement("p");
+        p.textContent = text;
+        if (className) p.className = className;
+
+        divMsg.appendChild(p);
+
+        if (autoScroll) {
+            divMsg.scrollTop = divMsg.scrollHeight;
+        }
+    }
+</script>
+
+</body>
+</html>
