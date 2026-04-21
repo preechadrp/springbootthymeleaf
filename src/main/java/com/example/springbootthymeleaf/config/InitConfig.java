@@ -19,13 +19,15 @@ public class InitConfig {
 	public void init() {
 		log.info("init");
 		myThread = new Thread(()->{
+			int count = 0;
 			while (startThread) {
 				try {
 					Thread.sleep(1000l);
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					Thread.interrupted();
 				}
-				BroadcastWebSocketHandler.broadcast("ทดสอบข้อความ");
+				String message = "Server Broadcast #" + (++count) + " @ " + System.currentTimeMillis();
+				BroadcastWebSocketHandler.broadcast(message);
 			}
 		});
 		myThread.start();
